@@ -17,23 +17,17 @@ if( !class_exists( 'WRKTGPrivatePageLogin' ) ) {
 
         function WRKTGPrivatePageLogin() {
 
-            add_action( 'wp', array( $this, 'wp' ));
+            add_action( 'template_redirect', array( $this, 'template_redirect') );
 
         }
 
-        public function wp() {
+        public function template_redirect() {
 
-            global $wp_query;
-
-            $post = $wp_query->get_queried_object();
-
-            if ( $post && $post->post_status == 'private' && !is_user_logged_in() ) {
-
-                echo wp_login_url( get_permalink($post->ID));
-
-                wp_redirect( wp_login_url( get_permalink($post->ID)) );
+            if ( !is_user_logged_in() && !is_admin() ) {
+                $posts = get_posts(array('post_status'=>array('private'), 'post_name'=>get_query_var('name')));
+                if ( $posts ) $post = $posts[0];
+                wp_redirect( wp_login_url( get_permalink($post->ID) ) );
                 exit();
-
             }
 
         }
