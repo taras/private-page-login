@@ -17,18 +17,59 @@ if( !class_exists( 'WRKTGPrivatePageLogin' ) ) {
 
         function WRKTGPrivatePageLogin() {
 
-            add_action( 'template_redirect', array( $this, 'template_redirect') );
+
+            // hook to init because is_user_logged_in is not available before init
+            add_action( 'init', array( $this, 'init') );
 
         }
 
+        /**
+         * Make sure that user is not logged in and not in wp-admin
+         */
+        public function init() {
+            if ( !is_user_logged_in() && !is_admin() ) {
+                add_action( 'template_redirect', array( $this, 'template_redirect') );
+            }
+        }
+
+        /**
+         * Once query_vars were parsed, check if current post/page is private using its post_name
+         */
         public function template_redirect() {
 
-            if ( !is_user_logged_in() && !is_admin() ) {
-                $posts = get_posts(array('post_status'=>array('private'), 'post_name'=>get_query_var('name')));
-                if ( $posts ) $post = $posts[0];
-                wp_redirect( wp_login_url( get_permalink($post->ID) ) );
+            # attach to post_results to prevent private post from being excluded from results
+            add_filter( 'posts_results', array( $this, 'posts_results') );
+
+            if ( $name = get_query_var('name') ) {
+
+                # get all available post types to include them in search
+                $post_types = get_post_types(array('public' => true, 'exclude_from_search' => false));
+
+                # find private post with current post
+                $query = new WP_Query(array('post_status'=>array('private'), 'name'=>$name, 'post_type'=>$post_types));
+            }
+
+            # remove filter so it doesn't execute again after this
+            remove_filter( 'posts_results', array( $this, 'posts_results'));
+
+        }
+
+        /**
+         * After posts_results, private posts get excluded, so we must do our dirty work here
+         * @param $posts
+         * @return mixed
+         */
+        public function posts_results($posts) {
+
+            # make sure that only 1 post was found and its private
+            if ( count($posts) == 1 && $posts[0]->post_status == "private" ) {
+
+                # redirect to login page
+                wp_redirect( wp_login_url( get_permalink($posts[0]->ID) ) );
                 exit();
             }
+
+            return $posts;
 
         }
 
